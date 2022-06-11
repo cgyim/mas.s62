@@ -21,6 +21,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -110,7 +111,7 @@ func HexToPubkey(s string) (PublicKey, error) {
 	// first, make sure hex string is of correct length
 	if len(s) != expectedLength {
 		return p, fmt.Errorf(
-			"Pubkey string %d characters, expect %d", expectedLength)
+			"Pubkey string %d characters, expect %d", len(s), expectedLength)
 	}
 
 	// decode from hex to a byte slice
@@ -188,7 +189,7 @@ func HexToSignature(s string) (Signature, error) {
 	// first, make sure hex string is of correct length
 	if len(s) != expectedLength {
 		return sig, fmt.Errorf(
-			"Pubkey string %d characters, expect %d", expectedLength)
+			"Pubkey string %d characters, expect %d", len(s), expectedLength)
 	}
 
 	// decode from hex to a byte slice
@@ -220,10 +221,38 @@ func GenerateKey() (SecretKey, PublicKey, error) {
 	var sec SecretKey
 	var pub PublicKey
 
-	// Your code here
-	// ===
+	// Generate Sec key: random number of 256 zero blocks and 256 One Blocks, each block is 32 bytes(256 bits)
 
-	// ===
+	// Generate PubKey, for each block generate a hash value of 32 bytes as well.
+	zeroBlock := make([]byte, 32, 32)
+	oneBlock := make([]byte, 32, 32)
+
+	for i := 0; i < 256; i++ {
+
+		_, err := rand.Read(zeroBlock)
+		_, err1 := rand.Read((oneBlock))
+		if err != nil {
+			return sec, pub, err
+		}
+		if err1 != nil {
+			return sec, pub, err1
+		}
+		zeroBlockcopied := copy(sec.ZeroPre[i][:], zeroBlock[:])
+		oneBlockcopied := copy(sec.OnePre[i][:], oneBlock[:])
+		if zeroBlockcopied != 32 || oneBlockcopied != 32 {
+			return sec, pub, fmt.Errorf("In round %d, cpy from slice to array not completed, zero blocked copied bytes %d, one block copied bytes %d \n", i, zeroBlockcopied, oneBlockcopied)
+		}
+
+		//fmt.Printf("Init round %d\n", i)
+		pub.ZeroHash[i] = sha256.Sum256(zeroBlock[:])
+		pub.OneHash[i] = sha256.Sum256(oneBlock[:])
+
+		// fmt.Printf("Zero Block data 32 Bytes: %x\n", sec.ZeroPre[i])
+		// fmt.Printf("Zero Block hash Bytes: %x\n", pub.ZeroHash[i])
+		// fmt.Printf("One Block 32 Bytes: %x\n", sec.OnePre[i])
+		// fmt.Printf("One Block hash Bytes: %x\n", pub.OneHash[i])
+	}
+
 	return sec, pub, nil
 }
 
@@ -231,10 +260,22 @@ func GenerateKey() (SecretKey, PublicKey, error) {
 func Sign(msg Message, sec SecretKey) Signature {
 	var sig Signature
 
-	// Your code here
-	// ===
+	for i := 0; i < 32; i++ {
+		// loop over every bytes in the message, saying b.
 
-	// ===
+		// loop 8 times. Mask initialized as 0xA0.
+		// calculates the value of b & Mask, if byte & Mask == Mask it mean the corrsponding bit is 1.
+		Mask := 0x80
+		for j := 0; j < 8; j++ {
+			if msg[i]&byte(Mask) == byte(Mask) {
+				// The (8i+j)'th bit is 1
+				sig.Preimage[8*i+j] = sec.OnePre[8*i+j]
+			} else {
+				sig.Preimage[8*i+j] = sec.ZeroPre[8*i+j]
+			}
+			Mask = Mask >> 1
+		}
+	}
 	return sig
 }
 
@@ -242,10 +283,39 @@ func Sign(msg Message, sec SecretKey) Signature {
 // describing the validity of the signature.
 func Verify(msg Message, pub PublicKey, sig Signature) bool {
 
-	// Your code here
-	// ===
+	for i := 0; i < 32; i++ {
+		// loop over every bytes in the message, saying b.
 
-	// ===
+		// loop 8 times. Mask initialized as 0xA0.
+		// calculates the value of b & Mask, if byte & Mask == Mask it mean the corrsponding bit is 1.
+		Mask := 0x80
+	ThisByte:
+		for j := 0; j < 8; j++ {
+			original32bytesNumber := sig.Preimage[8*i+j]
+			original32bytesHash := sha256.Sum256(original32bytesNumber[:])
+			if msg[i]&byte(Mask) == byte(Mask) {
+				// The (8i+j)'th bit is 1
+				// get the original number(signature) from preimage.onepre.
+				if bytes.Equal(original32bytesHash[:], pub.OneHash[8*i+j][:]) {
+					//fmt.Printf("number in 265, idx %d found in OneBlock, match the hash of num: %x", 8*i+j, pub.OneHash[8*i+j])
+					Mask = Mask >> 1
+					continue ThisByte
+				} else {
+					return false
+				}
+			} else {
+				if bytes.Equal(original32bytesHash[:], pub.ZeroHash[8*i+j][:]) {
+					//fmt.Printf("number in 265, idx %d found in ZeroBlock, match the hash of num: %x", 8*i+j, pub.ZeroHash[8*i+j])
+					Mask = Mask >> 1
+					continue ThisByte
+				} else {
+					return false
+				}
+			}
+
+		}
+
+	}
 
 	return true
 }

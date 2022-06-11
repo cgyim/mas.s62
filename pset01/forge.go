@@ -1,6 +1,12 @@
 package main
 
-import "fmt"
+import (
+	"crypto/rand"
+	"crypto/sha256"
+	"errors"
+	"fmt"
+	"runtime"
+)
 
 /*
 A note about the provided keys and signatures:
@@ -119,15 +125,160 @@ func Forge() (string, Signature, error) {
 	fmt.Printf("ok 3: %v\n", Verify(msgslice[2], pub, sig3))
 	fmt.Printf("ok 4: %v\n", Verify(msgslice[3], pub, sig4))
 
-	msgString := "my forged message"
+	msgString := "zhejyan@microsoft.com's forge"
+	msgBuf := []byte(msgString)
 	var sig Signature
 
-	// your code here!
-	// ==
-	// Geordi La
-	// ==
+	var privateKey SecretKey
+	zeroPreIsRevealed := make(map[int]bool, 256)
+	OnePreIsRevealed := make(map[int]bool, 256)
+	for idx, block := range sig1.Preimage {
+		if block.Hash() == pub.ZeroHash[idx] {
+			//fmt.Printf("sig1 image[%d] number Hash match zero Hash, select zero\n", idx)
+			privateKey.ZeroPre[idx] = block
+			zeroPreIsRevealed[idx] = true
+		} else {
+			if block.Hash() == pub.OneHash[idx] {
+				//fmt.Printf("sig1 image[%d] number Hash match One Hash, select One\n", idx)
+				privateKey.OnePre[idx] = block
+				OnePreIsRevealed[idx] = true
+			} else {
+				panic(errors.New(fmt.Sprintf("sig1 image[%d] hash %s does not match One or Zero!\n", idx, block.Hash().ToHex())))
+			}
+		}
+	}
 
-	return msgString, sig, nil
+	for idx, block := range sig2.Preimage {
+
+		if block.Hash() == pub.ZeroHash[idx] {
+			//fmt.Printf("sig2 image[%d] number Hash match zero Hash, select zero\n", idx)
+			privateKey.ZeroPre[idx] = block
+			zeroPreIsRevealed[idx] = true
+		} else {
+			if block.Hash() == pub.OneHash[idx] {
+				//fmt.Printf("sig2 image[%d] number Hash match One Hash, select One\n", idx)
+				privateKey.OnePre[idx] = block
+				OnePreIsRevealed[idx] = true
+			} else {
+				panic(errors.New(fmt.Sprintf("sig2 image[%d] hash %s does not match One or Zero!\n", idx, block.Hash().ToHex())))
+			}
+		}
+	}
+
+	for idx, block := range sig3.Preimage {
+
+		if block.Hash() == pub.ZeroHash[idx] {
+			//fmt.Printf("sig3 image[%d] number Hash match zero Hash, select zero\n", idx)
+			privateKey.ZeroPre[idx] = block
+			zeroPreIsRevealed[idx] = true
+		} else {
+			if block.Hash() == pub.OneHash[idx] {
+				//fmt.Printf("sig3 image[%d] number Hash match One Hash, select One\n", idx)
+				privateKey.OnePre[idx] = block
+				OnePreIsRevealed[idx] = true
+			} else {
+				panic(errors.New(fmt.Sprintf("sig3 image[%d] hash %s does not match One or Zero!\n", idx, block.Hash().ToHex())))
+			}
+		}
+	}
+
+	for idx, block := range sig4.Preimage {
+
+		if block.Hash() == pub.ZeroHash[idx] {
+			//fmt.Printf("sig4 image[%d] number Hash match zero Hash, select zero\n", idx)
+			privateKey.ZeroPre[idx] = block
+			zeroPreIsRevealed[idx] = true
+		} else {
+			if block.Hash() == pub.OneHash[idx] {
+				//fmt.Printf("sig4 image[%d] number Hash match One Hash, select One\n", idx)
+				privateKey.OnePre[idx] = block
+				OnePreIsRevealed[idx] = true
+			} else {
+				panic(errors.New(fmt.Sprintf("sig4 image[%d] hash %s does not match One or Zero!\n", idx, block.Hash().ToHex())))
+			}
+		}
+	}
+
+	// check, for each i range from 0 to 255, at least one block(either zero or one) pre image should be revealed.
+	for k := 0; k < 256; k++ {
+		_, ok1 := zeroPreIsRevealed[k]
+		_, ok2 := OnePreIsRevealed[k]
+		if !(ok1 || ok2) {
+			panic(fmt.Errorf("panic. idx[%d], both zero pre image and one pre image are not revealed.\n", k))
+		}
+	}
+
+	corenum := runtime.NumCPU()
+	complete := make(chan string)
+
+	buf1 := make([]byte, 27)
+	buf2 := make([]byte, 29)
+
+	for n := 0; n < corenum; n++ {
+		go func(TaskId int) {
+		TryNextMessage:
+			for {
+				_, err1 := rand.Read(buf1)
+				_, err2 := rand.Read(buf2)
+				if err1 != nil || err2 != nil {
+
+					fmt.Println("gen rand error ===>")
+				}
+
+				messageProcessing := append(append(buf1, msgBuf...), buf2...)
+				//fmt.Printf("Processing Msg [%s]\n", hex.EncodeToString(messageProcessing))
+				msgBlock := sha256.Sum256(messageProcessing)
+			UseImageByCheckingBit:
+				for x := 0; x < 256; x++ {
+					if msgBlock[x/8]>>(7-(x%8))&0x01 == 0x01 {
+						// the i'th bit is 1
+						if _, ok := OnePreIsRevealed[x]; ok {
+							//fmt.Printf("Task Id: %d , idx: [%d], bit 1 and onePre is revealed, looks good.\n", TaskId, x)
+							continue UseImageByCheckingBit
+						} else {
+							//fmt.Printf("Task Id: %d , processing msg: %s, bit idx: [%d], found 1 and onePre is not revealed, looks not good, going next.\n", TaskId, messageProcessing, x)
+							// should use one pre but one pre does not exist, in this case we select to next msg
+							messageProcessing = nil
+							continue TryNextMessage
+						}
+					} else {
+						if msgBlock[x/8]>>(7-(x%8))&0x01 != 0x00 {
+							panic(fmt.Errorf("Task Id: %d, idx: [%d], bit not 0 or 1\n", TaskId, x))
+						}
+						// the i'th bit is 0
+						if _, ok := zeroPreIsRevealed[x]; ok {
+							//fmt.Printf("Task Id: %d , idx: [%d], bit 0 and zeroPre is revealed, looks good.\n", TaskId, x)
+							continue UseImageByCheckingBit
+						} else {
+							//fmt.Printf("Task Id: %d , processing msg: %s, bit idx: [%d], found 0 and zeroPre is not revealed, looks not good, going next.\n", TaskId, messageProcessing, x)
+							// should use one pre but one pre does not exist, in this case we select to next msg
+							messageProcessing = nil
+							continue TryNextMessage
+						}
+					}
+				}
+
+				fmt.Printf("We successfully get the forgery msg! %s\n", string(messageProcessing))
+				complete <- string(messageProcessing)
+			}
+		}(n)
+
+	}
+
+	msg := <-complete
+	msgBlock := GetMessageFromString(msg)
+	for x := 0; x < 256; x++ {
+		if msgBlock[x/8]>>(7-(x%8))&0x01 == 0x01 {
+			// the i'th bit is 1
+			fmt.Printf("composing forged signature: select one pre, Idx: [%d]\n", x)
+			sig.Preimage[x] = privateKey.OnePre[x]
+		} else {
+			// the i'th bit is 0
+			fmt.Printf("composing forged signature: select zero pre, Idx: [%d]\n", x)
+			sig.Preimage[x] = privateKey.ZeroPre[x]
+		}
+	}
+	return msg, sig, nil
 
 }
 

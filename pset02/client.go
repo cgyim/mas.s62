@@ -8,10 +8,10 @@ import (
 
 var (
 	// note that this server is not up yet!  Will be soon!
-	serverHostname = "hubris.media.mit.edu:6262"
+	//serverHostname = "hubris.media.mit.edu:6262"
 
 	// uncomment for testing & running a server on localhost
-	//	serverHostname = "127.0.0.1:6262"
+	serverHostname = "127.0.0.1:6262"
 )
 
 // The functions in this file are provided to give connectivity to the
@@ -66,10 +66,10 @@ func GetTipFromServer() (Block, error) {
 // SendBlockToServer connects to the server and sends a block.  The server won't
 // respond at all! :(  But you can check for the tip by connecting again to see
 // if the server updated it's blockchain
-func SendBlockToServer(bl Block) error {
+func SendBlockToServer(bl Block) (msg string, err error) {
 	connection, err := net.Dial("tcp", serverHostname)
 	if err != nil {
-		return err
+		return "can not connect to server!", err
 	}
 	fmt.Printf("connected to server %s\n", connection.RemoteAddr().String())
 
@@ -80,17 +80,17 @@ func SendBlockToServer(bl Block) error {
 
 	_, err = connection.Write(sendbytes)
 	if err != nil {
-		return err
+		return "failed to send block to server!", err
 	}
 
 	// read response from server and print out.
 	bufReader := bufio.NewReader(connection)
 	ResponseLine, err := bufReader.ReadBytes('\n')
 	if err != nil {
-		return err
+		return "read response error!", err
 	}
 
 	fmt.Printf("Server resposnse: %s\n", string(ResponseLine))
 
-	return connection.Close()
+	return string(ResponseLine), connection.Close()
 }

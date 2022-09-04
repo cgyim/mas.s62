@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/btcsuite/btcd/btcec"
+	"github.com/btcsuite/btcd/btcec/v2"
+	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
-	"github.com/btcsuite/btcutil"
 )
 
 // TxToHex takes a transaction and outputs the serialized tx in hex.
@@ -85,7 +85,7 @@ func EZTxBuilder() *wire.MsgTx {
 	phraseHash := chainhash.DoubleHashB([]byte("secret phrase here"))
 
 	// make a new private key struct.  Private key structs also have a pubkey in them
-	priv, _ := btcec.PrivKeyFromBytes(btcec.S256(), phraseHash)
+	priv, _ := btcec.PrivKeyFromBytes(phraseHash)
 
 	fmt.Printf("my pubkey: %x\n", priv.PubKey().SerializeCompressed())
 	// we also need the script from the previous transaction.  This is redundant as it

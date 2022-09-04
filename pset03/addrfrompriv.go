@@ -3,10 +3,10 @@ package main
 import (
 	"fmt"
 
-	"github.com/btcsuite/btcd/btcec"
+	"github.com/btcsuite/btcd/btcec/v2"
+	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
-	"github.com/btcsuite/btcutil"
 )
 
 func AddressFromPrivateKey() (string, error) {
@@ -17,7 +17,7 @@ func AddressFromPrivateKey() (string, error) {
 	phraseHash := chainhash.DoubleHashB([]byte("mpQQryVrYmGNPxVqNeE5RgoYAv2v66Psao"))
 
 	// make a new private key struct.  Private key structs also have a pubkey in them
-	priv, _ := btcec.PrivKeyFromBytes(btcec.S256(), phraseHash)
+	priv, _ := btcec.PrivKeyFromBytes(phraseHash)
 
 	// print out what it looks like in hex, compressed (x-coordinate, y-sign only)
 

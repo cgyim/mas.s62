@@ -1,11 +1,11 @@
 package main
 
 import (
-	"github.com/btcsuite/btcd/btcec"
+	"github.com/btcsuite/btcd/btcec/v2"
+	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
-	"github.com/btcsuite/btcutil"
 )
 
 func OpReturnTxBuilder() *wire.MsgTx {
@@ -77,7 +77,7 @@ func OpReturnTxBuilder() *wire.MsgTx {
 	spendFromScript, err := txscript.PayToAddrScript(sendToAddress)
 
 	phraseHash := chainhash.DoubleHashB([]byte("private key here"))
-	priv, _ := btcec.PrivKeyFromBytes(btcec.S256(), phraseHash)
+	priv, _ := btcec.PrivKeyFromBytes(phraseHash)
 
 	pubSig, err := txscript.SignatureScript(
 		tx, 0, spendFromScript, txscript.SigHashAll, priv, true)
